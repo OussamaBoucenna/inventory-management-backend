@@ -1,57 +1,64 @@
-const express = require('express'); 
-const mongoose = require('mongoose')
-const itemRouter = express.Router(); 
+const { DataTypes } = require('sequelize');
+const {sequelize} = require('./../config/db.config'); 
 
-const itemSchema = new mongoose.Schema({
-    destination: {
-        type: String,
-        required: true
-      },
-      ancienneReference: {
-        type: String,
-        required: false,
-        default: '',
-      },
-      numeroImmobTribank: {
-        type: String,
-        required: true
-      },
-      designation : {
-        type : String , 
-        required:true , 
-      },
-      dateAquis :{
-        type:String,
-        required:false
-      },
-      montentHorsTax: {
-        type:String,
-        required:false,
-        default:"0"
-      },
-      valImob:{
-        type:String,
-        required:false,
-        default:"0"
-      },
-      vnc:{
-        type:String,
-        required:false,
-        default:"0"
-      },
-      observation:{
-        type:String,
-        required:false,
-        default:'/'
-      },
-      status:{
-       type :String ,
-       enum : ['scan','noScan'],
-       required : true, 
+const Item = sequelize.define('Item', {
+  destination: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  ancienneReference: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: ''
+  },
+  numeroImmobTribank: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'N/A' 
+  },
+  designation: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  dateAquis: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  montentHorsTax: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: '0'
+  },
+  valImob: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: '0'
+  },
+  vnc: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: '0'
+  },
+  observation: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: '/'
+  },
+  status: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      isIn: [['scan', 'noScan']]
+    }
+  }
+}, {
+  hooks: {
+    beforeSave: (item, options) => {
+      if (typeof item.numeroImmobTribank === 'object') {
+        item.numeroImmobTribank = "N/A";
       }
-})
+    }
+  }
+});
 
-const Item =  mongoose.model('item',itemSchema); 
-
-
-module.exports = {Item}
+module.exports = {Item};

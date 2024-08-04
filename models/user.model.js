@@ -1,53 +1,72 @@
-const mongoose = require('mongoose')
-const {isEmail} = require('validator')
-const bcrypt  = require('bcrypt')
+const { DataTypes } = require('sequelize');
+const {sequelize} = require('./../config/db.config'); 
+const bcrypt = require('bcrypt');
+const { isEmail } = require('validator');
 
+const User = sequelize.define('User', {
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
+    validate: {
+      isEmail: {
+        msg: 'svp, entrer un e-mail valide'
+      }
+    }
+  },
+  password: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      len: {
+        args: [7],
+        msg: 'la taille minimale du password est 7 caractères'
+      }
+    }
+  },
+  role: {
+    type: DataTypes.ENUM('superAdmin', 'admin', 'superUser', 'user'),
+    allowNull: false
+  },
+  numAgence: {
+    type: DataTypes.STRING
+  },
+  commissionIn: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: '0'
+  }
+}, {
+  hooks: {
+    beforeSave: async (user) => {
+      if (user.changed('password')) {
+        const salt = await bcrypt.genSalt();
+        user.password = await bcrypt.hash(user.password, salt);
+      }
+    }
+  }
+});
 
-const userSchema = new  mongoose.Schema({
-   email :{
-        type : String , 
-        required :[true,'svp,entrer un e-mail'],
-        unique:true , 
-        lowercase:true,
-        validate : [isEmail,'svp,entrer un e-mail valide']
-   },
-   password :{
-        type:String,
-        required : [true,'svp,enter un mots de passe'],
-        minlength:[7 ,'la taille minimal du password est 7 caracteres']
-   },
-   role :{
-     type : String  , 
-     enum : ['superAdmin','admin','superUser','user'],
-     required:true 
-   },
-   numAgence:{
-     type : String , 
-     required : false , 
-   }
-})
+User.login = async function (email, password) {
+  const user = await this.findOne({ where: { email } });
 
-userSchema.statics.login = async function (email,password){
-     const user = await this.findOne({email})
+  if (user) {
+    const match = await bcrypt.compare(password, user.password);
+    if (match) {
+      return user;
+    }
+    throw new Error('Incorrect password');
+  }
+  throw new Error('Incorrect email');
+};
 
-     if(user){
-          const match = await bcrypt.compare(password,user.password)
-           if(match){
-               // le logine et reussit 
-                 return user ; 
-           }
-           throw Error('incorrect password')
-     }
-     throw Error ('incorrect email')
-}
+User.getUserById = async function (id) {
+  const user = await this.findByPk(id);
+  if (user) {
+    return user;
+  }
+  throw new Error("User n'existe pas");
+};
 
-userSchema.pre('save', async function (next){
-     const salt = await bcrypt.genSalt()
-     const hashedPassword  =await bcrypt.hash(this.password,salt)
-     this.password = hashedPassword ; 
-     next()
-})
-
-const User =  mongoose.model('user',userSchema)
-
-module.exports = {User}; 
+module.exports = {User};
+ 

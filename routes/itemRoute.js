@@ -6,8 +6,8 @@ const upload = multer({ dest: 'uploads/' });
 
 
 
-itemRouter.get('/:barCode',getItemByBarCode)
-itemRouter.put('/:id',updateItemBybarCode) 
-itemRouter.post('/import',upload.single('file'),importExcelToDataBase)
+itemRouter.get('/:barCode',getItemByBarCode) // done 
+itemRouter.put('/:id',updateItemBybarCode)  // noneed because there will be no status in the item value  
+itemRouter.post('/import',upload.single('file'),importExcelToDataBase) // im in 
 itemRouter.post('/create',createItem)
 module.exports = {itemRouter}

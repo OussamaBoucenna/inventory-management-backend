@@ -1,48 +1,22 @@
 const {Item} = require('./../models/item.model')
+const {Commission} = require('./../models/commission.model')
 const ExcelJS = require('exceljs');
+const {Op} = require('sequelize')
 
 
-
-// const getItemBybarCode = async (req,res) => {
-//   const itemBarCode = req.params.barCode ; 
-//   console.log( `le barcode dans le body est ${itemBarCode}`)
-
-//    try {
-//      const itemTriBank = await Item.find({itemTriBank:itemBarCode})
-//      if (itemTriBank.length != 0  ){
-//       if (itemTriBank.length === 1) {
-//         res.status(200).json({ item: itemTriBank[0] });
-//       } else {
-//         res.status(200).json({ items: itemTriBank });
-//       }
-//      }else{
-//        const  itemAncienne = await Item.find({ancienneReference:itemBarCode})
-//         if (itemAncienne.length != 0 ){
-//           if (itemAncienne.length === 1) {
-//             res.status(200).json({ item: itemAncienne[0] });
-//           } else {
-//             res.status(200).json({ items: itemAncienne });
-//           }
-//         }else{
-//             res.status(404).json({message:"item not found"})
-//         }
-//      }
-//    } catch (error) {
-//      res.status(500).json({message:"Error in the server"})
-//    }
-
-// }  
 const getItemByBarCode = async (req, res) => {
   const itemBarCode = req.params.barCode;
   console.log(`Le barcode dans le body est ${itemBarCode}`);
+
   try {
-    // Recherche par itemTriBank et ancienneReference
-    const items = await Item.find({
-      $or: [
-        { numeroImmobTribank: itemBarCode },
-        { ancienneReference: itemBarCode },
-      ],
-    }).exec();
+    const items = await Item.findAll({
+      where: {
+        [Op.or]: [
+          { numeroImmobTribank: itemBarCode },
+          { ancienneReference: itemBarCode }
+        ]
+      }
+    });
 
     if (items.length === 0) {
       res.status(404).json({ message: "Item not found" });
@@ -52,9 +26,12 @@ const getItemByBarCode = async (req, res) => {
       res.status(200).json({ items: items });
     }
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// initule doka 
 const updateItemBybarCode = async (req,res) => {
      const itemId = req.params.id ; 
      const update = req.body; 
@@ -88,6 +65,7 @@ const updateItemBybarCode = async (req,res) => {
  }
  
 const importExcelToDataBase = async (req,res) => {
+   console.log("begin import excel to dataBase")
    if (!req.file) {
       return res.status(400).json({ message: 'Aucun fichier uploadé' });
     }
@@ -97,36 +75,29 @@ const importExcelToDataBase = async (req,res) => {
       await workbook.xlsx.readFile(req.file.path);
       const worksheet = workbook.worksheets[0];
   
-      // Lire les données du fichier Excel
       const jsonData = [];
+      
       worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return; // Skip header row
-        if (rowNumber === 2) return;
-        if (rowNumber === 3) return;
-        if (rowNumber === 4) return;
-        if (rowNumber === 5) return;
-        if (rowNumber === 6) return;
-        if (rowNumber === 7) return;
-         var  ancienne =  row.getCell(2);
-         
+        if (rowNumber <= 7) return; // Skip header and initial rows
+       
         jsonData.push({
           destination: row.getCell(1).value,
-          ancienneReference: ancienne,
+          ancienneReference:  (row.getCell(2).value || '').toString(), 
           numeroImmobTribank: row.getCell(3).value,
-          designation :row.getCell(4).value,
-          dateAquis:row.getCell(5).value,
-          montentHorsTax:row.getCell(6).value,
-          valImob:row.getCell(7).value,
-          vnc:row.getCell(8).value, 
-          observation:row.getCell(9).value,
-          status:"noScan"
+          designation: row.getCell(4).value,
+          dateAquis: row.getCell(5).value,
+          montentHorsTax: row.getCell(6).value,
+          valImob: row.getCell(7).value,
+          vnc: row.getCell(8).value,
+          observation: row.getCell(9).value,
+          status: "noScan"
         });
       });
   
-      // Importer les données dans MongoDB
-      await Item.insertMany(jsonData);
-  
-      res.status(200).json({ message: 'Fichier importé avec succès' });
+      await Item.bulkCreate(jsonData);
+      res.status(200).json({message:"fichier impporté avec succés"})
+      console.log('Fichier importé avec succès');
+      // await createCommissionsForItems(); // apres on doit elever cette ligne car on doit pas cree tout les commissions a la fois , on doit les creer on fure et a mesure que l'utilisateur scan le codebare 
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: 'Erreur lors de l\'importation du fichier' });
@@ -152,7 +123,8 @@ const importExcelToDataBase = async (req,res) => {
         { header: 'OBS', key: 'obs' },
         { header: 'STATUS', key: 'status' },
       ];
-      const items = await Item.find().exec();
+      const items = await Item.aggregate(pipeline).exec();
+      console.log(items)
       items.forEach(item => {
         const row = worksheet.addRow({
           destination: item.destination,
@@ -191,6 +163,32 @@ const importExcelToDataBase = async (req,res) => {
       res.status(500).send('Error generating Excel file');
       console.error(err);
     }
- }
+ }  
+ 
+
+
+
+ const createCommissionsForItems = async () => {
+  try {
+    const items = await Item.findAll();
+    const commissions = items.flatMap(item => [
+      {
+        itemId: item.id,
+        userId: 1, 
+        commission: '1'
+      },
+      {
+        itemId: item.id,
+        userId:2,
+        commission: '2',
+      }
+    ]);
+
+    await Commission.bulkCreate(commissions);
+    console.log('Commissions créées avec succès pour chaque item.');
+  } catch (error) {
+    console.error('Erreur lors de la création des commissions :', error);
+  }
+};
 
 module.exports = {getItemByBarCode,updateItemBybarCode,importExcelToDataBase,exportDataBaseToExcel,createItem}
