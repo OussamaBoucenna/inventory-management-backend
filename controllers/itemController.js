@@ -2,6 +2,7 @@ const {Item} = require('./../models/item.model')
 const {Commission} = require('./../models/commission.model')
 const ExcelJS = require('exceljs');
 const {Op} = require('sequelize')
+const  {sequelize} = require('./../config/db.config')
 
 
 const getItemByBarCode = async (req, res) => {
@@ -112,19 +113,36 @@ const importExcelToDataBase = async (req,res) => {
   
       // Ajouter les en-têtes
       worksheet.columns = [
-        { header: 'Destination', key: 'destination' },
-        { header: 'Ancienne référence', key: 'ancienne' },
-        { header: 'N° immob TRIBANK', key: 'triBank' },
-        { header: 'Désignation', key: 'designation' },
-        { header: 'Date d\'acq', key: 'dateAquis' },
-        { header: 'Mt HT d\'acq', key: 'montantHorsTaxe' },
-        { header: 'VALEUR IMMOB', key: 'valImmob' },
-        { header: 'valeur nette comptable VNC', key: 'vnc' },
-        { header: 'OBS', key: 'obs' },
-        { header: 'STATUS', key: 'status' },
+        { header: 'Destination', key: 'destination',width: 10 },
+        { header: 'Ancienne référence', key: 'ancienne',width: 20 },
+        { header: 'N° immob TRIBANK', key: 'triBank',width: 20 },
+        { header: 'Désignation', key: 'designation',width : 45  },
+        { header: 'Date d\'acq', key: 'dateAquis', width:22 },
+        { header: 'Mt HT d\'acq', key: 'montantHorsTaxe',width:20},
+        { header: 'VALEUR IMMOB', key: 'valImmob',width:20 },
+        { header: 'valeur nette comptable VNC', key: 'vnc',width:20 },
+        { header: 'OBS', key: 'obs' ,width:20},
+
+         // Colonnes pour les commissions de type 1
+       { header: 'Nom Utilisateur 1', key: 'nameUser1',width:20 },
+        { header: 'Numéro Agence 1', key: 'NumAgence1',width:10 },
+        { header: 'Statut 1', key: 'status1' ,width:12 },
+        { header: 'Date 1', key: 'date1',width:15 },
+
+      // Colonnes pour les commissions de type 2
+        { header: 'Nom Utilisateur 2', key: 'nameUser2' },
+        { header: 'Numéro Agence 2', key: 'NumAgence2' },
+        { header: 'Statut 2', key: 'status2' },
+        { header: 'Date 2', key: 'date2' },
+
+  // Colonnes pour les commissions de type 3
+        { header: 'Nom Utilisateur 3', key: 'nameUser3' },
+        { header: 'Numéro Agence 3', key: 'NumAgence3' },
+        { header: 'Statut 3', key: 'status3' },
+        { header: 'Date 3', key: 'date3' },
+
       ];
-      const items = await Item.aggregate(pipeline).exec();
-      console.log(items)
+      const [items, metadata] = await sequelize.query(sql);
       items.forEach(item => {
         const row = worksheet.addRow({
           destination: item.destination,
@@ -136,20 +154,57 @@ const importExcelToDataBase = async (req,res) => {
           valImmob:item.valImob,
           vnc:item.vnc,
           obs:item.observation,
-          status:item.status
+
+          // Colonnes pour les commissions de type 1
+          nameUser1: item.nameUser1,
+          NumAgence1: item.NumAgence1,
+          status1: item.status1,
+          date1: item.date1,
+
+            // Colonnes pour les commissions de type 2
+          nameUser2: item.nameUser2,
+          NumAgence2: item.NumAgence2,
+          status2: item.status2,
+          date2: item.date2,
+
+          // Colonnes pour les commissions de type 3
+          nameUser3: item.nameUser3,
+          NumAgence3: item.NumAgence3,
+          status3: item.status3,
+          date3: item.date3,
         });
         let fill;
-        switch (item.status) {
-          case 'noScan':
-            fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } }; // Rouge pour noScan
-            break;
-          case 'scan':
+            
+          if (item.status1 === "scan"){
             fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00FF00' } }; // Vert pour scan
-            break;
-          default:
-            fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }; // Blanc pour les autres statuts
-        }
-  
+          }else if (item.status1 ==="annomalie"){
+              if (item.status2 ==="scan"){
+                fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00FF00' } }; // Vert pour scan
+              }else {
+                //  annomalie
+                fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFA500' } }; // Jaune orangé
+              }
+          }else if (item.status1 ==="noScan"){ // status1 = noScan 
+            if (item.status2 ==="scan"){
+              fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00FF00' } }; // Vert pour scan
+            }else if (item.status2==="noScan") {
+              fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } }; // Rouge pour noScan
+            }else{
+                // annomalie
+                fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFA500' } }; // Jaune orangé
+            }
+          }else{
+            if (item.status2 ==="scan"){
+              fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00FF00' } }; // Vert pour scan
+            }else if (item.status2 === "noScan"){
+              fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } }; // Rouge pour noScan
+            }else if(item.status2 === "annomalie"){
+              fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFA500' } }; // Jaune orangé
+            }else {
+              // fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }; // Blanc
+
+            }
+          }
         row.eachCell(cell => {
           cell.fill = fill;
         });
@@ -192,3 +247,48 @@ const importExcelToDataBase = async (req,res) => {
 };
 
 module.exports = {getItemByBarCode,updateItemBybarCode,importExcelToDataBase,exportDataBaseToExcel,createItem}
+
+
+
+
+
+
+
+
+const sql = `
+    SELECT
+        destination, ancienneReference, numeroImmobTribank, designation, dateAquis, montentHorsTax, valImob, vnc, observation,
+        nameUser1, NumAgence1, status1, date1,
+        nameUser2, NumAgence2, status2, date2,
+        nameUser3, NumAgence3, status3, date3
+    FROM
+        items
+    JOIN (
+        SELECT
+            items.id AS itemId,
+            MAX(CASE WHEN commissions.commission = 1 THEN commissions.nameUser END) AS nameUser1,
+            MAX(CASE WHEN commissions.commission = 1 THEN commissions.agence END) AS NumAgence1,
+            MAX(CASE WHEN commissions.commission = 1 THEN commissions.status END) AS status1,
+            MAX(CASE WHEN commissions.commission = 1 THEN commissions.date END) AS date1,
+            MAX(CASE WHEN commissions.commission = 2 THEN commissions.nameUser END) AS nameUser2,
+            MAX(CASE WHEN commissions.commission = 2 THEN commissions.agence END) AS NumAgence2,
+            MAX(CASE WHEN commissions.commission = 2 THEN commissions.status END) AS status2,
+            MAX(CASE WHEN commissions.commission = 2 THEN commissions.date END) AS date2,
+            MAX(CASE WHEN commissions.commission = 3 THEN commissions.nameUser END) AS nameUser3,
+            MAX(CASE WHEN commissions.commission = 3 THEN commissions.agence END) AS NumAgence3,
+            MAX(CASE WHEN commissions.commission = 3 THEN commissions.status END) AS status3,
+            MAX(CASE WHEN commissions.commission = 3 THEN commissions.date END) AS date3
+        FROM
+            items
+        LEFT JOIN (
+            SELECT
+                commissions.*,
+                users.numAgence AS agence,
+                users.email AS nameUser
+            FROM
+                commissions
+            JOIN users ON commissions.userId = users.id
+        ) AS commissions ON items.id = commissions.itemId
+        GROUP BY items.id
+    ) AS com ON items.id = com.itemId
+  `;
