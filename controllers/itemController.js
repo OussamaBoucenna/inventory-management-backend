@@ -64,7 +64,10 @@ const updateItemBybarCode = async (req,res) => {
     res.status(500).json({message:"erreur dans le serveur "})    
   }
  }
- 
+ function cleanNumber(number) {
+  const numStr = number.toString();
+  return numStr.replace(/^0+/, '');
+}
 const importExcelToDataBase = async (req,res) => {
    console.log("begin import excel to dataBase")
    if (!req.file) {
@@ -80,9 +83,9 @@ const importExcelToDataBase = async (req,res) => {
       
       worksheet.eachRow((row, rowNumber) => {
         if (rowNumber <= 7) return; // Skip header and initial rows
-       
+      
         jsonData.push({
-          destination: row.getCell(1).value,
+          destination: cleanNumber( row.getCell(1).value),
           ancienneReference:  (row.getCell(2).value || '').toString(), 
           numeroImmobTribank: row.getCell(3).value,
           designation: row.getCell(4).value,
@@ -246,7 +249,161 @@ const importExcelToDataBase = async (req,res) => {
   }
 };
 
-module.exports = {getItemByBarCode,updateItemBybarCode,importExcelToDataBase,exportDataBaseToExcel,createItem}
+// WALID METHODE 
+   
+const getStats = async (req, res) => {
+
+  try {
+    
+    const [nbItems] = await sequelize.query(`SELECT COUNT(*) AS nbItems FROM items`);
+    const [nbUserAccount] = await sequelize.query(`SELECT COUNT(*) AS nbUserAccount FROM users`);
+    const [nbScanCom1] = await sequelize.query(`SELECT COUNT(*) AS nbScanCom1 FROM commissions WHERE commissions.commission = '1'`);
+    const [nbScanCom2] = await sequelize.query(`SELECT COUNT(*) AS nbScanCom2 FROM commissions WHERE commissions.commission = '2'`);
+    const [nbScanCom3] = await sequelize.query(`SELECT COUNT(*) AS nbScanCom3 FROM commissions WHERE commissions.commission = '3'`);
+    // const [nbNoScan] = await db.query("SELECT COUNT(*) AS NbNoScan FROM items WHERE statut = 'Non Scanné'");
+    
+    const [nbScanSAcom1] = await sequelize.query(`SELECT COUNT(*) AS nbScanSAcom1 FROM commissions WHERE commissions.commission = '1' AND commissions.status = 'scan'`);
+    const [nbScanAAcom1] = await sequelize.query(`SELECT COUNT(*) AS nbScanAAcom1 FROM commissions WHERE commissions.commission = '1' AND commissions.status = 'annomalie'`);
+    const [nbScanSAcom2] = await sequelize.query(`SELECT COUNT(*) AS nbScanSAcom2 FROM commissions WHERE commissions.commission = '2' AND commissions.status = 'scan'`);
+    const [nbScanAAcom2] = await sequelize.query(`SELECT COUNT(*) AS nbScanAAcom2 FROM commissions WHERE commissions.commission = '2' AND commissions.status = 'annomalie'`);
+    const [nbScanSAcom3] = await sequelize.query(`SELECT COUNT(*) AS nbScanSAcom3 FROM commissions WHERE commissions.commission = '3' AND commissions.status = 'scan'`);
+    const [nbScanAAcom3] = await sequelize.query(`SELECT COUNT(*) AS nbScanAAcom3 FROM commissions WHERE commissions.commission = '3' AND commissions.status = 'annomalie'`);
+     
+
+    res.status(200).json({
+      nbItems: nbItems[0].nbItems,
+      nbUserAccount:nbUserAccount[0].nbUserAccount,
+      nbScanCom1: nbScanCom1[0].nbScanCom1,
+      nbScanCom2: nbScanCom2[0].nbScanCom2,
+      nbScanCom3: nbScanCom3[0].nbScanCom3,
+        //==============================
+      nbScanSAcom1: nbScanSAcom1[0].nbScanSAcom1, 
+      nbScanAAcom1 : nbScanAAcom1[0].nbScanAAcom1,
+      nbScanSAcom2: nbScanSAcom2[0].nbScanSAcom2,
+      nbScanAAcom2 : nbScanAAcom2[0].nbScanAAcom2,
+      nbScanSAcom3: nbScanSAcom3[0].nbScanSAcom3,
+      nbScanAAcom3 : nbScanAAcom3[0].nbScanAAcom3
+    });
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    res.status(500).send('Server error');
+  }
+};
+
+
+const getAllItems = async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 100;
+
+  const { commission, agence, statut, year } = req.query;
+
+  let filterConditions = [];
+  if (commission) filterConditions.push(`commissions.commission = '${commission}'`);
+  if (agence) filterConditions.push(`items.destination = '${agence}'`);
+  if (statut) filterConditions.push(`commissions.status = '${statut}'`);
+  if (year) filterConditions.push(`YEAR(items.dateAquis) = '${year}'`);
+
+  const filterQuery = filterConditions.length > 0 ? `WHERE ${filterConditions.join(' AND ')}` : '';
+
+  try {
+    // Count total items with applied filters
+    const totalItemsQuery = filterConditions.length > 0 ? `
+      SELECT COUNT(*) as count
+      FROM items,commissions
+      ${filterQuery} AND commissions.itemId = items.id` : `
+      SELECT COUNT(*) as count
+      FROM items 
+      LEFT JOIN commissions ON commissions.itemId = items.id
+      ${filterQuery}
+    `;
+    const [totalItems] = await sequelize.query(totalItemsQuery);
+    const totalPages = Math.ceil(totalItems[0].count / pageSize);
+    const offset = totalPages === 1 ? 0 : (page - 1) * pageSize;
+    // const testqr = `SELECT items.destination, items.ancienneReference, items.numeroImmobTribank, items.designation, items.observation
+    //    FROM items,commissions
+    //    ${filterQuery} AND commissions.itemId = items.id
+    //    LIMIT ${pageSize} OFFSET ${offset}`
+    //   console.log(testqr);
+    
+    // Fetch filtered items with pagination
+    const [items, metadata] = filterConditions.length > 0 ? await sequelize.query(
+      `SELECT items.destination, items.ancienneReference, items.numeroImmobTribank, items.designation, items.observation
+       FROM items,commissions
+       ${filterQuery} AND commissions.itemId = items.id
+       LIMIT ${pageSize} OFFSET ${offset}`
+    ) : await sequelize.query(
+      `SELECT items.destination, ancienneReference, numeroImmobTribank, items.designation, items.observation
+       FROM items 
+       LEFT JOIN commissions ON commissions.itemId = items.id 
+       ${filterQuery}
+       LIMIT ${pageSize} OFFSET ${offset}`
+    );
+
+    // Count total items with applied filters
+
+    if (items.length === 0) {
+      return res.status(404).json({ message: "No items found" });
+    }
+
+    res.status(200).json({
+      items: items,
+      currentPage: page,
+      totalPages: totalPages,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+const getAllNoScanItems = async (req, res) => {
+  try {
+    // Get page and pageSize from query parameters, defaulting to page 1 and 100 items per page if not provided
+    const { page = 1, pageSize = 100 } = req.query;
+
+    // Calculate offset for pagination
+    const offset = (page - 1) * pageSize;
+
+    // Count total items with applied filters, excluding those with a commission
+    const totalItemsQuery = `
+      SELECT COUNT(*) as count
+      FROM items
+      LEFT JOIN commissions ON commissions.itemId = items.id
+      WHERE commissions.itemId IS NULL
+    `;
+    const [totalItems] = await sequelize.query(totalItemsQuery);
+
+    // Fetch filtered items without a commission with pagination
+    const itemsQuery = `
+      SELECT items.destination, items.ancienneReference, items.numeroImmobTribank, items.designation, items.observation
+      FROM items
+      LEFT JOIN commissions ON commissions.itemId = items.id
+      WHERE commissions.itemId IS NULL
+      LIMIT :limit OFFSET :offset
+    `;
+    const [items] = await sequelize.query(itemsQuery, {
+      replacements: { limit: parseInt(pageSize), offset: parseInt(offset) },
+    });
+
+    if (items.length === 0) {
+      return res.status(404).json({ message: "No items found" });
+    }
+
+    res.status(200).json({
+      items,
+      totalItems: totalItems[0].count,
+      totalPages: Math.ceil(totalItems[0].count / pageSize),
+      currentPage: parseInt(page),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+ 
+ 
+//******************************************************************* */
+
+module.exports = {getItemByBarCode,updateItemBybarCode,importExcelToDataBase,exportDataBaseToExcel,createItem,getStats,getAllItems,getAllNoScanItems}
 
 
 

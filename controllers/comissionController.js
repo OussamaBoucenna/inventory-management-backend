@@ -99,4 +99,30 @@ const getCommissionByItemId = async (req, res) => {
   }
 };
 
-module.exports = {createCommission,updateCommissionById,getCommissionByItemId};
+
+//  walid methods 
+const getComStatusByItemId = async (req, res) => {
+  const itemId = req.params.itemId;
+  // const commissionValue = req.body.commission;
+  const commissionValue = req.query.commission || 1 ;
+
+  try {
+    // Recherche de la commission par itemId et commissionIn
+    const commissionF = await Commission.findOne({
+      where: {
+        itemId: itemId,
+        commission: commissionValue
+      }
+    });
+
+    if (commissionF) {
+      res.status(200).json({ commission: commissionF });
+    } else {
+      res.status(404).json({ message: "Commission not found" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving commission', error: error.message });
+  }
+};
+
+module.exports = {createCommission,updateCommissionById,getCommissionByItemId,getComStatusByItemId};

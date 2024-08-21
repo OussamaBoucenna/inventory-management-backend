@@ -60,9 +60,19 @@ User.login = async function (email, password) {
   throw new Error('Incorrect email');
 };
 
-User.getUserById = async function (id) {
+User.getUsersById = async function (id) {
   const user = await this.findByPk(id);
   if (user) {
+    return user;
+  }
+  throw new Error("User n'existe pas");
+};
+
+User.updateUser = async function (id, updateData) {
+  const user = await this.findByPk(id);  
+  if (user) {
+    console.log('Détails à mettre à jour:', updateData);
+    await user.update(updateData);
     return user;
   }
   throw new Error("User n'existe pas");

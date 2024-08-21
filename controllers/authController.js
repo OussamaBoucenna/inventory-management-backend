@@ -31,7 +31,7 @@ const signupUser = async (req,res) => {
            res.status(400).json({message:"user with this email already exist",user:user})
         }
     } catch (error) {
-        res.status(400).send('erreur,l utilisateur n est pas creer')
+        res.status(500).send('erreur,l utilisateur n est pas creer')
         console.log(error)
     }
 }
@@ -54,7 +54,7 @@ const getCurrentUser = async(req,res)=> {
          const {id,role}  = req.user ; 
          console.log(id)
          try {
-          const user = await User.getUserById(id);
+          const user = await User.getUsersById(id);
           if (user){
             res.status(200).json({user:user})
           }else{
@@ -62,11 +62,48 @@ const getCurrentUser = async(req,res)=> {
           }
          } catch (error) {
             res.status(500).json({message:"erreur dans le serveur",error:error.message})
-         }
+         }   
+}
 
-        
+ const getUsers = async (req,res) => {
+     try {
+      const users = await User.findAll({});
+      res.status(200).json({users:users})
+     }catch(e){
+      res.status(500).json({message:"erreur interne,serveur ne répond pas "})
+     }
+ }
+
+ const updateUserDetails = async (req,res) => {
+   const {newDetails} = req.body;
+   const id = req.params.id ; 
+  try {
+    const updatedUser = await User.updateUser(id, newDetails);
+    console.log('Utilisateur mis à jour:', updatedUser);
+    res.status(200).json({user:updatedUser})
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de l\'utilisateur:', error.message);
+    res.status(400).json({err:error.message})
+  }
+}
+
+const getUserById = async (req,res) => {
+  const id  = req.params.id
+   
+  try {
+    const user  = await User.getUsersById(id);
+   
+    if (user){
+      res.status(200).json({user:user})
+    }else {
+      res.status(404).json({message:"user n'est pas trouver "})
+
+    }
+  } catch (error) {
+    res.status(500).json({message:"erreur dans le serveur"})
+     }
 }
 
 
 
-module.exports = {signupUser ,loginUser,getCurrentUser}; 
+module.exports = {signupUser ,loginUser,getCurrentUser,getUsers,updateUserDetails,getUserById}; 
