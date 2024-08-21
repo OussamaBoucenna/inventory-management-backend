@@ -103,8 +103,6 @@ const getAgenceInfo = async (req,res) => {
      }
 }
 
-
-
 const getAgenceInfoGeneral = async (req, res) => {
     console.log('le route est')
     try {
@@ -189,6 +187,44 @@ const getAgenceInfoGeneral = async (req, res) => {
       res.status(500).json({message:error.message})
     }
   }
+  const getAllStat = async (req, res) => {
+    try {
+       const [result] = await sequelize.query(`SELECT COUNT(*) as numTotal FROM items`)
+      const [results, metadata] = await sequelize.query(`
+        SELECT 
+          c.commission,
+          COALESCE(SUM(CASE WHEN t.status = 'scan' THEN 1 ELSE 0 END), 0) AS scan,
+          COALESCE(SUM(CASE WHEN t.status = 'annomalie' THEN 1 ELSE 0 END), 0) AS annomalie
+        FROM 
+          (SELECT 1 AS commission
+           UNION ALL
+           SELECT 2
+           UNION ALL
+           SELECT 3) c
+        LEFT JOIN 
+          commissions t
+        ON 
+          c.commission = t.commission
+        GROUP BY 
+          c.commission;
+      `);
 
+      const  general_info =[];
+      results.map((com)=>{
+        const infoCommission = {
+          commission : com.commission,
+          scan : com.scan, 
+          annomalie : com.annomalie, 
+          noScan :  parseInt(result[0].numTotal,10) - parseInt(com.scan,10) - parseInt(com.annomalie,10) 
+        }
+        general_info.push(infoCommission);
+      })
+  
+      res.status(200).json({info:general_info});
+    } catch (error) {
+      console.error("Error fetching statistics:", error);
+      res.status(500).json({ error: "An error occurred while fetching statistics" });
+    }
+  };
 
-module.exports = {getUserInfo,getAgenceInfo,getArticleScanAgence,getAgenceInfoGeneral,getAgenceDetailsAllCommission}
+module.exports = {getUserInfo,getAgenceInfo,getArticleScanAgence,getAgenceInfoGeneral,getAgenceDetailsAllCommission,getAllStat}
